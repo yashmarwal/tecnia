@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Details Form | Tecnia Institute of Teacher Education</title>
+  <link rel="icon" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero">
+    <span class="logo"><img src="logo.png" alt="Tecnia logo"></span>
+    <h1>Tecnia Institute of Teacher Education</h1>
+    <p>Student details form</p>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <form id="f">
+        <p class="lead">Fill this in once. Fields marked <span class="req">*</span> are required.</p>
+        <div id="err" class="banner" role="alert" hidden></div>
+
+        <fieldset class="section">
+          <h2>Personal details</h2>
+          <label class="field"><span class="label">Full name <span class="req">*</span></span>
+            <input id="name" type="text" required maxlength="100" pattern=".*\S.*" autocomplete="name"></label>
+          <label class="field"><span class="label">Father's name <span class="req">*</span></span>
+            <input id="father" type="text" required maxlength="100" pattern=".*\S.*"></label>
+          <label class="field"><span class="label">Phone number <span class="req">*</span></span>
+            <input id="phone" type="tel" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}" autocomplete="tel-national"
+                   title="Enter exactly 10 digits">
+            <span class="hint">10 digits. Each number can be registered once.</span></label>
+          <label class="field"><span class="label">Address <span class="req">*</span></span>
+            <textarea id="address" required maxlength="300" autocomplete="street-address"></textarea></label>
+        </fieldset>
+
+        <fieldset class="section">
+          <h2>CTET details</h2>
+          <fieldset class="field">
+            <legend>Exam status <span class="req">*</span></legend>
+            <div class="seg-group">
+              <label class="seg"><input type="radio" name="status" value="appearing" required>
+                <span>Appearing<small>Exam yet to be given, or result awaited</small></span></label>
+              <label class="seg"><input type="radio" name="status" value="appeared" required>
+                <span>Appeared<small>Exam given and result declared</small></span></label>
+            </div>
+          </fieldset>
+
+          <div class="reveal" id="r-appeared"><div class="inner"><div class="pad">
+            <fieldset class="gate" disabled>
+              <label class="field"><span class="label">Session <span class="req">*</span></span>
+                <select id="session" required>
+                  <option value="">Select session</option>
+                  <option>2021-2022</option><option>2022-2023</option><option>2023-2024</option>
+                  <option>2024-2025</option><option>2025-2026</option>
+                </select></label>
+
+              <fieldset class="field">
+                <legend>Have you cleared CTET? <span class="req">*</span></legend>
+                <div class="seg-group">
+                  <label class="seg"><input type="radio" name="ctet" value="yes" required><span>Yes</span></label>
+                  <label class="seg"><input type="radio" name="ctet" value="no" required><span>No</span></label>
+                </div>
+              </fieldset>
+
+              <div class="reveal" id="r-ctet"><div class="inner"><div class="pad">
+                <fieldset class="gate" disabled>
+                  <label class="field"><span class="label">CTET marks (out of 150) <span class="req">*</span></span>
+                    <input id="marks" type="number" required min="0" max="150" step="1" inputmode="numeric"></label>
+
+                  <fieldset class="field">
+                    <legend>Are you working? <span class="req">*</span></legend>
+                    <div class="seg-group">
+                      <label class="seg"><input type="radio" name="working" value="government" required><span>Government</span></label>
+                      <label class="seg"><input type="radio" name="working" value="private" required><span>Private</span></label>
+                      <label class="seg"><input type="radio" name="working" value="not_working" required><span>Not working</span></label>
+                    </div>
+                  </fieldset>
+
+                </fieldset>
+              </div></div></div>
+            </fieldset>
+          </div></div></div>
+        </fieldset>
+
+        <div class="reveal" id="r-emp"><div class="inner"><div class="pad">
+          <fieldset class="gate section" disabled>
+            <h2>Organisation details</h2>
+            <label class="field"><span class="label">Organisation name <span class="req">*</span></span>
+              <input id="employer" type="text" required maxlength="150" pattern=".*\S.*" placeholder="School or organisation where you work"></label>
+            <label class="field"><span class="label">Session in which you were placed <span class="req">*</span></span>
+              <select id="placed" required>
+                <option value="">Select session</option>
+                <option>2021-2022</option><option>2022-2023</option><option>2023-2024</option>
+                <option>2024-2025</option><option>2025-2026</option>
+              </select></label>
+          </fieldset>
+        </div></div></div>
+
+        <button id="submit" class="btn block" type="submit">Submit details</button>
+      </form>
+
+      <section id="done" class="done" tabindex="-1" hidden>
+        <svg class="tick" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="34"/><path d="M22 37l10 10 18-22"/></svg>
+        <h2>Details submitted</h2>
+        <p>Your response has been recorded. You can close this page.</p>
+        <button id="again" class="btn ghost" type="button">Submit another response</button>
+      </section>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const form = $("#f"), err = $("#err"), btn = $("#submit"), phone = $("#phone");
+    const radio = (n) => form.elements[n].value;
+    const text = (id) => $("#" + id).value.trim();
+
+    const configured = !SUPABASE_URL.includes("YOUR-PROJECT");
+    const db = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null; // never reuse an admin login stored in this browser: inserts must go out as the anon role
+
+    // Open or close a conditional block. Closing clears it, so hidden answers are never submitted.
+    function setOpen(id, open) {
+      const box = $("#" + id), gate = box.querySelector(".gate");
+      box.classList.toggle("open", open);
+      gate.disabled = !open;
+      if (!open) gate.querySelectorAll("input, select").forEach((el) => {
+        if (el.type === "radio") el.checked = false; else el.value = "";
+      });
+    }
+
+    function sync() {
+      setOpen("r-appeared", radio("status") === "appeared");
+      setOpen("r-ctet", radio("ctet") === "yes");
+      setOpen("r-emp", radio("working") === "government" || radio("working") === "private");
+    }
+    form.addEventListener("change", sync);
+
+    phone.addEventListener("input", () => {
+      phone.value = phone.value.replace(/\D/g, "");
+      phone.setCustomValidity("");
+    });
+
+    function showError(msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ behavior: "smooth", block: "center" }); }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.hidden = true;
+      if (!configured) return showError("This form is not connected to its database yet. Please tell the form administrator.");
+
+      const appeared = radio("status") === "appeared";
+      const ctet = appeared && radio("ctet") === "yes";
+      const working = ctet ? radio("working") : null;
+      const employed = working === "government" || working === "private";
+      const row = {
+        name: text("name"),
+        father_name: text("father"),
+        address: text("address"),
+        phone: phone.value,
+        status: radio("status"),
+        session: appeared ? text("session") : null,
+        ctet_clear: appeared ? ctet : null,
+        ctet_marks: ctet ? Number(text("marks")) : null,
+        working,
+        employer: employed ? text("employer") : null,
+        placed_session: employed ? text("placed") : null,
+      };
+
+      if (!row.address) return showError("Please enter your address.");
+
+      btn.disabled = true; btn.textContent = "Submitting...";
+      const { error } = await db.from("students").insert(row);
+      btn.disabled = false; btn.textContent = "Submit details";
+
+      if (error && error.code === "23505") {
+        phone.setCustomValidity("This phone number is already registered.");
+        phone.reportValidity();
+        return;
+      }
+      if (error) {
+        console.error("Supabase insert failed:", error);
+        return showError("Could not submit. Check your internet connection and try again.");
+      }
+
+      form.hidden = true;
+      $("#done").hidden = false;
+      $("#done").focus();
+    });
+
+    $("#again").addEventListener("click", () => {
+      form.reset(); sync();
+      $("#done").hidden = true; form.hidden = false;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+
+    if (!configured) showError("Setup needed: add the Supabase URL and key in config.js.");
+  </script>
+</body>
+</html>

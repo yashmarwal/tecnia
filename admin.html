@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Admin | Tecnia Institute of Teacher Education</title>
+  <link rel="icon" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="bar">
+    <span class="logo"><img src="logo.png" alt="Tecnia logo"></span>
+    <h1>Tecnia Institute of Teacher Education: Admin</h1>
+    <span id="who" class="who"></span>
+    <button id="logout" class="btn ghost" type="button" hidden>Log out</button>
+  </header>
+
+  <main class="admin-main">
+    <section id="login" class="card login">
+      <h2>Admin login</h2>
+      <div id="login-err" class="banner" role="alert" hidden></div>
+      <form id="login-form">
+        <label class="field"><span class="label">Email</span>
+          <input id="email" type="email" required autocomplete="username"></label>
+        <label class="field"><span class="label">Password</span>
+          <input id="password" type="password" required autocomplete="current-password"></label>
+        <button id="login-btn" class="btn block" type="submit">Log in</button>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <div class="filters">
+        <label class="field"><span class="label">Search</span>
+          <input id="q" type="text" placeholder="Name, father, phone, address"></label>
+        <label class="field"><span class="label">Status</span>
+          <select id="f-status"><option value="">All</option><option value="appearing">Appearing</option><option value="appeared">Appeared</option></select></label>
+        <label class="field"><span class="label">Session</span>
+          <select id="f-session"><option value="">All</option>
+            <option>2021-2022</option><option>2022-2023</option><option>2023-2024</option><option>2024-2025</option><option>2025-2026</option></select></label>
+        <label class="field"><span class="label">CTET cleared</span>
+          <select id="f-ctet"><option value="">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label class="field"><span class="label">Working</span>
+          <select id="f-working"><option value="">All</option><option value="government">Government</option><option value="private">Private</option><option value="not_working">Not working</option></select></label>
+        <div class="actions">
+          <button id="clear" class="btn ghost" type="button">Clear</button>
+          <button id="csv" class="btn" type="button">Download CSV</button>
+        </div>
+      </div>
+      <p id="count" class="count" aria-live="polite"></p>
+
+      <div id="state" class="state" role="status"></div>
+      <div id="table-wrap" class="table-wrap" hidden>
+        <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const STATUS = { appearing: "Appearing", appeared: "Appeared" };
+    const WORK = { government: "Government", private: "Private", not_working: "Not working" };
+    const yn = (b) => (b === null ? "" : b ? "Yes" : "No");
+
+    // k: sort key, f: display + CSV value
+    const COLS = [
+      { k: "created_at", l: "Submitted", f: (r) => new Date(r.created_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }), cls: "nowrap" },
+      { k: "name", l: "Name", f: (r) => r.name },
+      { k: "father_name", l: "Father's name", f: (r) => r.father_name },
+      { k: "phone", l: "Phone", f: (r) => r.phone, cls: "nowrap" },
+      { k: "address", l: "Address", f: (r) => r.address, cls: "addr" },
+      { k: "status", l: "Status", f: (r) => STATUS[r.status] },
+      { k: "session", l: "Session", f: (r) => r.session ?? "", cls: "nowrap" },
+      { k: "ctet_clear", l: "CTET cleared", f: (r) => yn(r.ctet_clear) },
+      { k: "ctet_marks", l: "CTET marks", f: (r) => r.ctet_marks ?? "" },
+      { k: "working", l: "Working", f: (r) => WORK[r.working] ?? "" },
+      { k: "employer", l: "Organisation", f: (r) => r.employer ?? "" },
+      { k: "placed_session", l: "Placed in session", f: (r) => r.placed_session ?? "", cls: "nowrap" },
+    ];
+
+    let rows = [];
+    let sort = { k: "created_at", dir: -1 };
+
+    // ---------- login ----------
+    function showApp(session) {
+      $("#login").hidden = !!session;
+      $("#app").hidden = !session;
+      $("#logout").hidden = !session;
+      $("#who").textContent = session ? session.user.email : "";
+      if (session) load();
+    }
+
+    $("#login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = $("#login-btn"), box = $("#login-err");
+      box.hidden = true; btn.disabled = true; btn.textContent = "Logging in...";
+      const { error } = await db.auth.signInWithPassword({ email: $("#email").value.trim(), password: $("#password").value });
+      btn.disabled = false; btn.textContent = "Log in";
+      if (error) { box.textContent = "Wrong email or password."; box.hidden = false; }
+    });
+    $("#logout").addEventListener("click", () => db.auth.signOut());
+    db.auth.onAuthStateChange((_event, session) => showApp(session));
+
+    // ---------- data ----------
+    function setState(msg, retry) {
+      const s = $("#state");
+      s.hidden = !msg; s.textContent = msg || "";
+      if (retry) {
+        const b = document.createElement("button");
+        b.className = "btn"; b.type = "button"; b.textContent = "Try again"; b.onclick = load;
+        s.append(document.createElement("br"), b);
+      }
+      $("#table-wrap").hidden = !!msg;
+    }
+
+    async function load() {
+      setState("Loading entries..."); $("#count").textContent = "";
+      try {
+        const all = [];
+        for (let from = 0; ; from += 1000) { // PostgREST returns at most 1000 rows per request
+          const { data, error } = await db.from("students").select("*").order("created_at", { ascending: false }).range(from, from + 999);
+          if (error) throw error;
+          all.push(...data);
+          if (data.length < 1000) break;
+        }
+        rows = all;
+        render();
+      } catch {
+        setState("Could not load entries. Check your internet connection.", true);
+      }
+    }
+
+    // ---------- filter + sort + render ----------
+    function visible() {
+      const q = $("#q").value.trim().toLowerCase();
+      const st = $("#f-status").value, se = $("#f-session").value, ct = $("#f-ctet").value, wk = $("#f-working").value;
+      const list = rows.filter((r) =>
+        (!st || r.status === st) && (!se || r.session === se) &&
+        (!ct || r.ctet_clear === (ct === "yes")) && (!wk || r.working === wk) &&
+        (!q || [r.name, r.father_name, r.phone, r.address, r.employer].some((v) => (v || "").toLowerCase().includes(q))));
+      return list.sort((a, b) => {
+        const x = a[sort.k], y = b[sort.k];
+        if (x === y) return 0;
+        if (x === null || x === undefined) return 1; // empty values always last
+        if (y === null || y === undefined) return -1;
+        const c = typeof x === "string" ? x.localeCompare(y, undefined, { sensitivity: "base" }) : x < y ? -1 : 1;
+        return c * sort.dir;
+      });
+    }
+
+    function render() {
+      const list = visible();
+      $("#count").textContent = `Showing ${list.length} of ${rows.length} entries`;
+      if (!rows.length) return setState("No entries yet. Submissions appear here as students fill the form.");
+      if (!list.length) return setState("No entries match these filters. Use Clear to reset them.");
+      setState("");
+
+      document.querySelectorAll("#thead button").forEach((b) => {
+        const on = b.dataset.k === sort.k;
+        if (on) b.dataset.dir = sort.dir; else delete b.dataset.dir;
+        b.parentElement.setAttribute("aria-sort", on ? (sort.dir === 1 ? "ascending" : "descending") : "none");
+      });
+
+      const frag = document.createDocumentFragment();
+      for (const r of list) {
+        const tr = document.createElement("tr");
+        for (const c of COLS) {
+          const td = document.createElement("td");
+          const v = c.f(r);
+          td.textContent = v === "" ? "-" : v; // textContent: student input is never parsed as HTML
+          if (c.cls) td.className = c.cls;
+          tr.append(td);
+        }
+        frag.append(tr);
+      }
+      $("#tbody").replaceChildren(frag);
+    }
+
+    for (const c of COLS) {
+      const th = document.createElement("th"), b = document.createElement("button");
+      b.type = "button"; b.textContent = c.l; b.dataset.k = c.k;
+      b.onclick = () => { sort = { k: c.k, dir: sort.k === c.k ? -sort.dir : 1 }; render(); };
+      th.scope = "col"; th.append(b); $("#thead").append(th);
+    }
+
+    document.querySelectorAll(".filters input, .filters select").forEach((el) => el.addEventListener("input", render));
+    $("#clear").addEventListener("click", () => {
+      document.querySelectorAll(".filters input, .filters select").forEach((el) => (el.value = ""));
+      render();
+    });
+
+    // ---------- CSV ----------
+    // Leading = + - @ would run as a formula in Excel, so such cells get a ' prefix.
+    const cell = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    $("#csv").addEventListener("click", () => {
+      const list = visible();
+      const lines = [COLS.map((c) => cell(c.l)).join(","), ...list.map((r) => COLS.map((c) => cell(c.f(r))).join(","))];
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }); // BOM so Excel reads UTF-8
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `students-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  </script>
+</body>
+</html>
