@@ -103,6 +103,11 @@
         <button id="submit" class="btn block" type="submit">Submit details</button>
       </form>
 
+      <section id="closed" class="done" hidden>
+        <h2>This form is closed</h2>
+        <p>We are no longer accepting responses. Thank you to everyone who filled it in.</p>
+      </section>
+
       <section id="done" class="done" tabindex="-1" hidden>
         <svg class="tick" viewBox="0 0 72 72" aria-hidden="true"><circle cx="36" cy="36" r="34"/><path d="M22 37l10 10 18-22"/></svg>
         <h2>Details submitted</h2>
@@ -148,9 +153,12 @@
 
     function showError(msg) { err.textContent = msg; err.hidden = false; err.scrollIntoView({ behavior: "smooth", block: "center" }); }
 
+    if (FORM_CLOSED) { form.hidden = true; $("#closed").hidden = false; }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       err.hidden = true;
+      if (FORM_CLOSED) return;
       if (!configured) return showError("This form is not connected to its database yet. Please tell the form administrator.");
 
       const appeared = radio("status") === "appeared";
